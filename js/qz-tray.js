@@ -380,19 +380,20 @@ var qz = (function() {
                 var pendingBytes = 0;
                 var callname = 'print';
 
-                //If data elements are small, combine multiple to fill a chunk.
+                //if data elements are small, combine multiple to fill a chunk.
                 for(var dataElementIndex = 0; dataElementIndex < data.length; dataElementIndex++) {
                     var byteIndex = 0;
-                    //Split remainers to chunk size, or split large objects into multiple chunks
+                    //split remainers to chunk size, or split large objects into multiple chunks
                     while (byteIndex < data[dataElementIndex].data.length) {
-                        //Either allocate what we can fit in this chunk, or if it is small enough, allocate the entire thing and move on to next dataElement
+                        //either allocate what we can fit in this chunk, or if it is small enough, allocate the entire thing and move on to next dataElement
                         var deltaBytes = Math.min(data[0].chunkSize - pendingBytes, data[dataElementIndex].data.length - byteIndex);
                         var pendingChunk = data[dataElementIndex].data.substring(byteIndex, byteIndex + deltaBytes);
                         pendingBytes += deltaBytes;
                         byteIndex += deltaBytes;
-                        //If first packet
+
                         var dataComplete = byteIndex == (data[dataElementIndex].data.length);
                         var lastChunk =  dataElementIndex == (data.length - 1) && dataComplete;
+                        //if this is first chunk of this dataElement, include the params
                         if (byteIndex == 0) {
                             pendingData.push({
                                 streamUID: streamUID,
@@ -998,7 +999,7 @@ var qz = (function() {
                 options: config.getOptions(),
                 data: data
             };
-            if (params.data[0].chunkSize) {
+            if (params.data && params.data[0].chunkSize) {
                 params.data[0].chunkSize = Math.max(4, Math.round(params.data[0].chunkSize / 4) * 4);
                 return _qz.websocket.streamPrint(params, signature, signingTimestamp);
             } else {
