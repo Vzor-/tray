@@ -374,34 +374,61 @@ var qz = (function() {
             streamPrint: function(params, signature, signingTimestamp) {
                 var data = params.data;
                 var promiseChain = [];
-                params.streamUID = _qz.websocket.setup.newUID();
+                var streamUID = _qz.websocket.setup.newUID();
 
+                var pendingData = [];
+                var pendingBytes = 0;
+                var callname = 'print';
+
+                //If data elements are small, combine multiple to fill a chunk.
                 for(var dataElementIndex = 0; dataElementIndex < data.length; dataElementIndex++) {
-                    for(var chunkIndex = 0; chunkIndex * data[0].chunkSize < data[dataElementIndex].data.length; chunkIndex++) {
-                        //start closure
-                        (function(_dataElementIndex, _chunkIndex) {
-                            var link = function() {
-                                var _byteIndex = _chunkIndex * data[0].chunkSize;
-                                var _chunkSize = Math.min(data[0].chunkSize, data[_dataElementIndex].data.length - data[0].chunkSize);
-                                params.lastChunk = (_dataElementIndex == data.length) && ((_chunkIndex + 1) * data[0].chunkSize > data[_dataElementIndex].data.length);
-                                params.data = data[_dataElementIndex].data.substring(_byteIndex, _byteIndex + _chunkSize);
-
-                                if (_chunkIndex == 0) {
-                                    //header and data
-                                    return _qz.websocket.dataPromise('print', params, signature, signingTimestamp);
-                                } else {
-                                    //data packet
-                                    var _params = {
-                                        streamUID: params.streamUID,
-                                        data: params.data,
-                                        lastChunk: params.lastChunk               
-                                    };
-                                    return _qz.websocket.dataPromise('printContinuation', _params, signature, signingTimestamp);
-                                }
+                    var byteIndex = 0;
+                    //Split remainers to chunk size, or split large objects into multiple chunks
+                    while (byteIndex < data[dataElementIndex].data.length) {
+                        //Either allocate what we can fit in this chunk, or if it is small enough, allocate the entire thing and move on to next dataElement
+                        var deltaBytes = Math.min(data[0].chunkSize - pendingBytes, data[dataElementIndex].data.length - byteIndex);
+                        var pendingChunk = data[dataElementIndex].data.substring(byteIndex, byteIndex + deltaBytes);
+                        pendingBytes += deltaBytes;
+                        byteIndex += deltaBytes;
+                        //If first packet
+                        var dataComplete = byteIndex == (data[dataElementIndex].data.length);
+                        var lastChunk =  dataElementIndex == (data.length - 1) && dataComplete;
+                        if (byteIndex == 0) {
+                            pendingData.push({
+                                streamUID: streamUID,
+                                dataComplete: dataComplete,
+                                lastChunk: lastChunk,
+                                type: data[dataElementIndex].type,
+                                format: data[dataElementIndex].format,
+                                options: data[dataElementIndex].options,
+                                data: pendingChunk
+                            });
+                        } else {
+                            pendingData.push({
+                                streamUID: streamUID,
+                                dataComplete: dataComplete,
+                                lastChunk: lastChunk,
+                                data: pendingChunk
+                            });
+                        }
+                        //send or repeat, or if this is the last piece send it anyway
+                        if (pendingBytes >= data[0].chunkSize || lastChunk) {
+                            var _params = {
+                                printer: params.printer,
+                                options: params.options,
+                                data: pendingData
                             }
-                            promiseChain.push(link);
-                        })(dataElementIndex, chunkIndex);
-                        //end closure
+                            promiseChain.push(getLink(callname, _params, signature, signingTimestamp));
+                            callname = 'printContinuation';
+                            pendingData = [];
+                            pendingBytes = 0;
+                        }
+                    }
+                }
+
+                function getLink(callname, pendingData, signature, signingTimestamp) {
+                    return function() {
+                        return _qz.websocket.dataPromise(callname, pendingData, signature, signingTimestamp);
                     }
                 }
 
