@@ -931,7 +931,57 @@ var qz = (function() {
                 options: config.getOptions(),
                 data: data
             };
-            return _qz.websocket.dataPromise('print', params, signature, signingTimestamp);
+            if (true) {
+                params.chunkSize = 1024;//= Math.max(4, Math.round(params.chunkSize / 4) * 4);
+                return _qz.streamPrint(params, signature, signingTimestamp);
+            } else {
+                return _qz.websocket.dataPromise('print', params, signature, signingTimestamp);
+            }
+        },
+
+        streamPrint: function(params, signature, signingTimestamp) {
+            var data = params.data;
+            var promiseChain = [];
+            params.streamUID = _qz.websocket.setup.newUID();
+
+            for(var dataElementIndex = 0; dataElementIndex < data.length; dataElementIndex++) {
+                for(var chunkIndex = 0; chunkIndex * chunkSize < data[dataElementIndex].data.length; chunkIndex++) {
+                    //start closure
+                    (function(_dataElementIndex, _chunkIndex) {
+                        var _byteIndex = _chunkIndex * params.chunkSize;
+                        var _chunkSize = Math.min(params.chunkSize, data[_dataElementIndex].length - params.chunkSize);
+                        params.lastChunk = (_dataElementIndex == data.length) && ((_chunkIndex + 1) * params.chunkSize > data[_dataElementIndex].length);
+                        params.data = data[_dataElementIndex].substring(_byteIndex, _byteIndex + _chunkSize);
+
+                        if (_chunkIndex == 0) {
+                            //header and data
+                            promiseChain.push(
+                                qz.websocket.dataPromise('print', params, signature, signingTimestamp)
+                            );
+                        } else {
+                            //data packet
+                            var _params = {
+                                streamUID: params.streamUID,
+                                data: params.data,
+                                lastChunk: params.lastChunk               
+                            };
+                            promiseChain.push(
+                                qz.websocket.dataPromise('printContinuation', _params, signature, signingTimestamp)
+                            );
+                        }
+                    })(dataElementIndex, chunkIndex);
+                    //end closure
+                }
+            }
+            function resolveChain(items) {
+                return _qz.tools.promise(function(resolve, reject) {
+                    if (items == 0) {
+                        resolve();
+                    }
+                    chain.shift.then(resolveChain(chain.length)).catch(reject);
+                });
+            }
+            return resolveChain(chain.length);
         },
 
 
