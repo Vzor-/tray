@@ -394,7 +394,7 @@ var qz = (function() {
                         var dataComplete = byteIndex == (data[dataElementIndex].data.length);
                         var lastChunk =  dataElementIndex == (data.length - 1) && dataComplete;
                         //if this is first chunk of this dataElement, include the params
-                        if (byteIndex == 0) {
+                        if (byteIndex - deltaBytes == 0) {
                             pendingData.push({
                                 streamUID: streamUID,
                                 dataComplete: dataComplete,

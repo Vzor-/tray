@@ -43,6 +43,7 @@ public class PrintSocketClient {
         PRINTERS_GET_DEFAULT("printers.getDefault", true, "access connected printers"),
         PRINTERS_FIND("printers.find", true, "access connected printers"),
         PRINT("print", true, "print to %s"),
+        PRINT_CONTINUATION("printContinuation", false, "continue printing to %s"),
 
         SERIAL_FIND_PORTS("serial.findPorts", true, "access serial ports"),
         SERIAL_OPEN_PORT("serial.openPort", true, "open a serial port"),
@@ -161,7 +162,7 @@ public class PrintSocketClient {
 
         String UID = null;
         try {
-            log.debug("Message: {}", message);
+            //log.debug("Message: {}", message);
             JSONObject json = new JSONObject(message);
             UID = json.optString("uid");
 
@@ -287,6 +288,12 @@ public class PrintSocketClient {
 
             case PRINT:
                 PrintingUtilities.processPrintRequest(session, UID, params);
+                //sendResult(session, UID, null);
+                sendResult(session, UID, null);
+                break;
+            case PRINT_CONTINUATION:
+                PrintingUtilities.processPrintRequest(session, UID, params);
+                sendResult(session, UID, null);
                 break;
 
             case SERIAL_FIND_PORTS:

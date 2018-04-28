@@ -1,5 +1,6 @@
 package qz.utils;
 
+import com.sun.xml.internal.bind.v2.TODO;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
@@ -10,9 +11,11 @@ import org.slf4j.LoggerFactory;
 import qz.common.Constants;
 import qz.printer.PrintOptions;
 import qz.printer.PrintOutput;
+import qz.printer.action.PrintDirect;
 import qz.printer.action.PrintProcessor;
 import qz.printer.action.ProcessorFactory;
 import qz.ws.PrintSocketClient;
+import qz.ws.SocketConnection;
 
 import javax.print.PrintService;
 import javax.print.attribute.ResolutionSyntax;
@@ -31,6 +34,8 @@ public class PrintingUtilities {
     private static HashMap<String,PrinterResolution> CUPS_DPI; //description -> default dpi
 
     private static GenericKeyedObjectPool<Type,PrintProcessor> processorPool;
+
+    private static PrintProcessor temp;
 
 
     private PrintingUtilities() {}
@@ -148,15 +153,15 @@ public class PrintingUtilities {
      * @param params  Params of call from web API
      */
     public static void processPrintRequest(Session session, String UID, JSONObject params) throws JSONException {
-        PrintProcessor processor = PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
-        log.debug("Using {} to print", processor.getClass().getName());
+        if (temp == null) temp = PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
+        log.debug("Using {} to print", temp.getClass().getName());
 
         try {
             PrintOutput output = new PrintOutput(params.optJSONObject("printer"));
             PrintOptions options = new PrintOptions(params.optJSONObject("options"), output);
 
-            processor.parseData(params.getJSONArray("data"), options);
-            processor.print(output, options);
+            temp.parseData(params.getJSONArray("data"), options);
+            temp.print(output, options);
             log.info("Printing complete");
 
             PrintSocketClient.sendResult(session, UID, null);
@@ -170,7 +175,7 @@ public class PrintingUtilities {
             PrintSocketClient.sendError(session, UID, e);
         }
         finally {
-            PrintingUtilities.releasePrintProcessor(processor);
+            PrintingUtilities.releasePrintProcessor(temp);
         }
     }
 

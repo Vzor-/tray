@@ -1,9 +1,11 @@
 package qz.printer.action;
 
 import org.apache.commons.codec.binary.Base64InputStream;
+import org.apache.commons.ssl.Base64;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
+import org.eclipse.jetty.websocket.api.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qz.common.Constants;
@@ -18,11 +20,12 @@ import javax.print.SimpleDoc;
 import javax.print.attribute.HashPrintRequestAttributeSet;
 import javax.print.attribute.PrintRequestAttributeSet;
 import javax.print.attribute.standard.JobName;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -30,9 +33,12 @@ public class PrintDirect extends PrintRaw {
 
     private static final Logger log = LoggerFactory.getLogger(PrintDirect.class);
 
-    private ArrayList<String> prints = new ArrayList<>();
-    private ArrayList<PrintingUtilities.Format> formats = new ArrayList<>();
+    private String streamUID;
+    private String fingerprint;
+    private PrintOptions options;
+    private Path tempFile;
 
+    private PrintingUtilities.Format lastFormat;
 
     @Override
     public PrintingUtilities.Type getType() {
@@ -44,54 +50,39 @@ public class PrintDirect extends PrintRaw {
         for(int i = 0; i < printData.length(); i++) {
             JSONObject data = printData.optJSONObject(i);
             if (data == null) { continue; }
-
-            prints.add(data.getString("data"));
-            formats.add(PrintingUtilities.Format.valueOf(data.optString("format", "PLAIN").toUpperCase(Locale.ENGLISH)));
+            try {
+                if (tempFile == null) {
+                    tempFile = Files.createTempFile("printjob", ".tmp");
+                }
+                PrintingUtilities.Format format = PrintingUtilities.Format.valueOf(data.optString("format", "PLAIN").toUpperCase(Locale.ENGLISH));
+                //Todo Remove this debugging log
+                log.warn(tempFile.toAbsolutePath().toUri().toString());
+                switch(format) {
+                    case BASE64:
+                        Files.write(tempFile, Base64.decodeBase64(data.getString("data")), StandardOpenOption.APPEND);
+                        break;
+                    case FILE:
+                        //stream = new DataInputStream(new URL(prints.get(i)).openStream());
+                        break;
+                    case PLAIN:
+                    default:
+                        Files.write(tempFile, data.getString("data").getBytes(), StandardOpenOption.APPEND);
+                        break;
+                }
+            }
+            catch(IOException e) {
+                //Todo Remove this debugging log
+                log.warn(e.getMessage());
+            }
         }
     }
 
     @Override
     public void print(PrintOutput output, PrintOptions options) throws PrintException {
-        PrintRequestAttributeSet attributes = new HashPrintRequestAttributeSet();
-        attributes.add(new JobName(options.getRawOptions().getJobName(Constants.RAW_PRINT), Locale.getDefault()));
-
-        for(int i = 0; i < prints.size(); i++) {
-            DocPrintJob printJob = output.getPrintService().createPrintJob();
-            InputStream stream = null;
-
-            try {
-                switch(formats.get(i)) {
-                    case BASE64:
-                        stream = new Base64InputStream(new ByteArrayInputStream(prints.get(i).getBytes("UTF-8")));
-                        break;
-                    case FILE:
-                        stream = new DataInputStream(new URL(prints.get(i)).openStream());
-                        break;
-                    case PLAIN:
-                    default:
-                        stream = new ByteArrayInputStream(prints.get(i).getBytes("UTF-8"));
-                        break;
-                }
-
-                SimpleDoc doc = new SimpleDoc(stream, DocFlavor.INPUT_STREAM.AUTOSENSE, null);
-
-                waitForPrint(printJob, doc, attributes);
-            }
-            catch(IOException e) {
-                throw new PrintException(e);
-            }
-            finally {
-                if (stream != null) {
-                    try { stream.close(); } catch(Exception ignore) {}
-                }
-            }
-        }
     }
 
     @Override
     public void cleanup() {
-        prints.clear();
-        formats.clear();
     }
 
 }
