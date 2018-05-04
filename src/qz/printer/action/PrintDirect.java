@@ -47,18 +47,6 @@ public class PrintDirect extends PrintRaw {
 
     @Override
     public void parseData(JSONArray printData, PrintOptions options) throws JSONException, UnsupportedOperationException {
-        if (tempFile == null) {
-            try {
-                tempFile = Files.createTempFile("printjob", ".tmp");
-                tempFile.toFile().deleteOnExit();
-                outputFileStream = FileUtils.openOutputStream(tempFile.toFile(), true);
-            }
-            catch(IOException e) {
-                log.error("Failed to create temp file ", e);
-                throw new UnsupportedOperationException(e);
-            }
-        }
-
         for(int i = 0; i < printData.length(); i++) {
             JSONObject data = printData.optJSONObject(i);
             if (data == null) { continue; }
@@ -119,9 +107,14 @@ public class PrintDirect extends PrintRaw {
         streamEOL = true;
     }
 
-    public void init(PrintOutput output, PrintOptions options) {
+    public void init(PrintOutput output, PrintOptions options) throws IOException {
         this.output = output;
         this.options = options;
+        if (tempFile == null) {
+            tempFile = Files.createTempFile("printjob", ".tmp");
+            tempFile.toFile().deleteOnExit();
+            outputFileStream = FileUtils.openOutputStream(tempFile.toFile(), true);
+        }
     }
 
     public boolean isEOL() {

@@ -13,6 +13,7 @@ import qz.printer.PrintOutput;
 import qz.printer.action.*;
 import qz.utils.PrintingUtilities;
 
+import java.io.IOException;
 import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Hashtable;
@@ -103,9 +104,15 @@ public class SocketConnection {
         PrintDirect printProcessor = (PrintDirect)PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
         PrintOutput output = new PrintOutput(params.optJSONObject("printer"));
         PrintOptions options = new PrintOptions(params.optJSONObject("options"), output);
-        printProcessor.init(output, options);
-        printStreams.put(fingerprint + streamUID, printProcessor);
 
+        try {
+            printProcessor.init(output, options);
+        }
+        catch(IOException e) {
+            PrintSocketClient.sendError(session, UID, e);
+            return;
+        }
+        printStreams.put(fingerprint + streamUID, printProcessor);
         processPrintStream(cert, session, UID, params);
     }
 
