@@ -153,15 +153,15 @@ public class PrintingUtilities {
      * @param params  Params of call from web API
      */
     public static void processPrintRequest(Session session, String UID, JSONObject params) throws JSONException {
-        if (temp == null) temp = PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
-        log.debug("Using {} to print", temp.getClass().getName());
+        PrintProcessor processor = PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
+        log.debug("Using {} to print", processor.getClass().getName());
 
         try {
             PrintOutput output = new PrintOutput(params.optJSONObject("printer"));
             PrintOptions options = new PrintOptions(params.optJSONObject("options"), output);
 
-            temp.parseData(params.getJSONArray("data"), options);
-            temp.print(output, options);
+            processor.parseData(params.getJSONArray("data"), options);
+            processor.print(output, options);
             log.info("Printing complete");
 
             PrintSocketClient.sendResult(session, UID, null);
@@ -175,8 +175,11 @@ public class PrintingUtilities {
             PrintSocketClient.sendError(session, UID, e);
         }
         finally {
-            PrintingUtilities.releasePrintProcessor(temp);
+            PrintingUtilities.releasePrintProcessor(processor);
         }
     }
 
+    public static boolean isPrintStream(JSONObject params) {
+        return params.optJSONArray("data").optJSONObject(0).optString("type", "NONE").toUpperCase(Locale.ENGLISH).equals("DIRECT");
+    }
 }
