@@ -47,11 +47,13 @@ public class PrintDirect extends PrintRaw {
 
     @Override
     public void parseData(JSONArray printData, PrintOptions options) throws JSONException, UnsupportedOperationException {
-        for(int i = 0; i < printData.length(); i++) {
-            JSONObject data = printData.optJSONObject(i);
-            if (data == null) { continue; }
-            printReady = printData.optJSONObject(i).optBoolean("lastChunk", false);
-            try {
+        try {
+            // if called as a simple print instead of a stream, init will not have been called.
+            if (this.options == null) init(null, options);
+            for(int i = 0; i < printData.length(); i++) {
+                JSONObject data = printData.optJSONObject(i);
+                if (data == null) { continue; }
+                printReady = printData.optJSONObject(i).optBoolean("lastChunk", false);
                 lastFormat = PrintingUtilities.Format.valueOf(data.optString("format", lastFormat.toString()).toUpperCase(Locale.ENGLISH));
                 InputStream input = null;
                 switch(lastFormat) {
@@ -81,15 +83,16 @@ public class PrintDirect extends PrintRaw {
                 //this prevents memory spikes at the cost of cpu cycles. Note, system.gc is not a guaranteed operation
                 System.gc();
             }
-            catch(IOException e) {
-                log.error("Parse data failed ", e);
-                throw new UnsupportedOperationException(e);
-            }
+        }
+        catch(IOException e) {
+            log.error("Parse data failed ", e);
+            throw new UnsupportedOperationException(e);
         }
     }
 
     @Override
     public void print(PrintOutput output, PrintOptions options) throws PrintException {
+        if (this.output == null) this.output = output;
         PrintOptions.Raw rawOpts = this.options.getRawOptions();
         for(int i = 0; i < rawOpts.getCopies(); i++) {
             PrintRequestAttributeSet attributes = new HashPrintRequestAttributeSet();

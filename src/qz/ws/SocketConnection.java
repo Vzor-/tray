@@ -1,20 +1,12 @@
 package qz.ws;
 
 import jssc.SerialPortException;
-import org.codehaus.jettison.json.JSONException;
-import org.codehaus.jettison.json.JSONObject;
-import org.eclipse.jetty.websocket.api.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qz.auth.Certificate;
 import qz.communication.*;
-import qz.printer.PrintOptions;
-import qz.printer.PrintOutput;
 import qz.printer.action.*;
-import qz.utils.PrintingUtilities;
 
-import java.io.IOException;
-import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Hashtable;
 
@@ -27,7 +19,7 @@ public class SocketConnection {
 
     private DeviceListener deviceListener;
 
-    private Dictionary<String,PrintDirect> printStreams;
+    private Hashtable<String,PrintDirect> printStreams;
 
     // serial port -> open SerialIO
     private final HashMap<String,SerialIO> openSerialPorts = new HashMap<>();
@@ -95,52 +87,15 @@ public class SocketConnection {
         addDevice(dOpts, device);
     }
 
-    public void initPrintStream(Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
-        String fingerprint = "!";
-        String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");
-        if (cert.isTrusted()) fingerprint = cert.getFingerprint();
+    public synchronized void addStream(String key, PrintDirect processor) {
         if (printStreams == null) printStreams = new Hashtable<>();
-
-        PrintDirect printProcessor = (PrintDirect)PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
-        PrintOutput output = new PrintOutput(params.optJSONObject("printer"));
-        PrintOptions options = new PrintOptions(params.optJSONObject("options"), output);
-
-        try {
-            printProcessor.init(output, options);
-        }
-        catch(IOException e) {
-            PrintSocketClient.sendError(session, UID, e);
-            return;
-        }
-        printStreams.put(fingerprint + streamUID, printProcessor);
-        processPrintStream(cert, session, UID, params);
+        printStreams.put(key, processor);
     }
-
-    public void processPrintStream(Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
-        String fingerprint = "!";
-        String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");
-        if (cert.isTrusted()) fingerprint = cert.getFingerprint();
-
-        PrintDirect printProcessor = printStreams.get(fingerprint + streamUID);
-        try {
-            printProcessor.parseData(params.getJSONArray("data"), null);
-            if (printProcessor.isReady()) printProcessor.print(null, null);
-
-            PrintSocketClient.sendResult(session, UID, null);
-        }
-        catch(Exception e) {
-            log.error("Failed to print", e);
-            printStreams.remove(fingerprint + streamUID);
-            PrintingUtilities.releasePrintProcessor(printProcessor);
-            PrintSocketClient.sendError(session, UID, e);
-        }
-        finally {
-            if (printProcessor.isEOL()) {
-                printStreams.remove(fingerprint + streamUID);
-                PrintingUtilities.releasePrintProcessor(printProcessor);
-                log.info("Printing complete");
-            }
-        }
+    public synchronized PrintDirect getStream(String key) {
+        return printStreams.get(key);
+    }
+    public synchronized PrintDirect removeStream(String key) {
+        return printStreams.remove(key);
     }
 
     /**
@@ -151,6 +106,10 @@ public class SocketConnection {
 
         for(String p : openSerialPorts.keySet()) {
             openSerialPorts.get(p).close();
+        }
+
+        for(PrintDirect p : printStreams.values()) {
+            qz.utils.PrintingUtilities.releasePrintProcessor(p);
         }
 
         for(DeviceIO dio : openDevices.values()) {

@@ -8,6 +8,7 @@ import org.codehaus.jettison.json.JSONObject;
 import org.eclipse.jetty.websocket.api.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import qz.auth.Certificate;
 import qz.common.Constants;
 import qz.printer.PrintOptions;
 import qz.printer.PrintOutput;
@@ -21,10 +22,8 @@ import javax.print.PrintService;
 import javax.print.attribute.ResolutionSyntax;
 import javax.print.attribute.standard.PrinterResolution;
 import java.awt.print.PrinterAbortException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
+import java.io.IOException;
+import java.util.*;
 
 public class PrintingUtilities {
 
@@ -179,7 +178,55 @@ public class PrintingUtilities {
         }
     }
 
+
+    public static void initPrintStream(SocketConnection connection,Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
+        String fingerprint = "!";
+        String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");
+        if (cert.isTrusted()) fingerprint = cert.getFingerprint();
+
+        PrintDirect printProcessor = (PrintDirect)PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
+        PrintOutput output = new PrintOutput(params.optJSONObject("printer"));
+        PrintOptions options = new PrintOptions(params.optJSONObject("options"), output);
+
+        try {
+            printProcessor.init(output, options);
+        }
+        catch(IOException e) {
+            PrintSocketClient.sendError(session, UID, e);
+            return;
+        }
+        connection.addStream(fingerprint + streamUID, printProcessor);
+        processPrintStream(connection, cert, session, UID, params);
+    }
+
+    public static void processPrintStream(SocketConnection connection, Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
+        String fingerprint = "!";
+        String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");
+        if (cert.isTrusted()) fingerprint = cert.getFingerprint();
+
+        PrintDirect printProcessor = connection.getStream(fingerprint + streamUID);
+        try {
+            printProcessor.parseData(params.getJSONArray("data"), null);
+            if (printProcessor.isReady()) printProcessor.print(null, null);
+
+            PrintSocketClient.sendResult(session, UID, null);
+        }
+        catch(Exception e) {
+            log.error("Failed to print", e);
+            connection.removeStream(fingerprint + streamUID);
+            PrintingUtilities.releasePrintProcessor(printProcessor);
+            PrintSocketClient.sendError(session, UID, e);
+        }
+        finally {
+            if (printProcessor.isEOL()) {
+                connection.removeStream(fingerprint + streamUID);
+                PrintingUtilities.releasePrintProcessor(printProcessor);
+                log.info("Printing complete");
+            }
+        }
+    }
+
     public static boolean isPrintStream(JSONObject params) {
-        return params.optJSONArray("data").optJSONObject(0).optString("type", "NONE").toUpperCase(Locale.ENGLISH).equals("DIRECT");
+        return params.optJSONArray("data").optJSONObject(0).has("streamUID");
     }
 }

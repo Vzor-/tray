@@ -288,13 +288,13 @@ public class PrintSocketClient {
 
             case PRINT:
                 if (PrintingUtilities.isPrintStream(params)) {
-                    connection.initPrintStream(shownCertificate, session, UID, params);
+                    PrintingUtilities.initPrintStream(connection, shownCertificate, session, UID, params);
                 } else {
                     PrintingUtilities.processPrintRequest(session, UID, params);
                 }
                 break;
             case PRINT_CONTINUATION:
-                connection.processPrintStream(shownCertificate, session, UID, params);
+                PrintingUtilities.processPrintStream(connection, shownCertificate, session, UID, params);
                 break;
 
             case SERIAL_FIND_PORTS:
