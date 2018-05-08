@@ -1,6 +1,5 @@
 package qz.utils;
 
-import com.sun.xml.internal.bind.v2.TODO;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
@@ -33,8 +32,6 @@ public class PrintingUtilities {
     private static HashMap<String,PrinterResolution> CUPS_DPI; //description -> default dpi
 
     private static GenericKeyedObjectPool<Type,PrintProcessor> processorPool;
-
-    private static PrintProcessor temp;
 
 
     private PrintingUtilities() {}
@@ -178,8 +175,16 @@ public class PrintingUtilities {
         }
     }
 
-
-    public static void initPrintStream(SocketConnection connection,Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
+    /**
+     * Initializes a stream that is keyed to the connection + cert Fingerprint + streamUID.
+     *
+     * @param connection SocketConnection that will store the stream reference
+     * @param cert       Certificate that followup chunks MUST be signed with
+     * @param session    WebSocket session
+     * @param UID        ID of call from web API
+     * @param params     Params of call from web API
+     */
+    public static void initPrintStream(SocketConnection connection, Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
         String fingerprint = "!";
         String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");
         if (cert.isTrusted()) fingerprint = cert.getFingerprint();
@@ -199,6 +204,15 @@ public class PrintingUtilities {
         processPrintStream(connection, cert, session, UID, params);
     }
 
+    /**
+     * Continues a stream that is keyed to the connection + cert Fingerprint + streamUID.
+     *
+     * @param connection SocketConnection that the stream reference is stored within
+     * @param cert       Certificate that was used to initialize the stream
+     * @param session    WebSocket session
+     * @param UID        ID of call from web API
+     * @param params     Params of call from web API
+     */
     public static void processPrintStream(SocketConnection connection, Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
         String fingerprint = "!";
         String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");

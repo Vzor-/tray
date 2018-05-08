@@ -64,14 +64,14 @@ public class PrintDirect extends PrintRaw {
                         input = new DataInputStream(new URL(data.getString("data")).openStream());
                         break;
                     case IMAGE:
-                        //commands.append(getImageWrapper(cmd, opt).getImageCommand());
-                        break;
+                        //unimplemented
+                        throw new UnsupportedOperationException();
                     case HEX:
                         input = new ByteArrayInputStream(ByteUtilities.hexStringToByteArray(data.getString("data")));
                         break;
                     case XML:
-                        //commands.append(Base64.decodeBase64(FileUtilities.readXMLFile(cmd, opt.optString("xmlTag"))));
-                        break;
+                        //unimplemented
+                        throw new UnsupportedOperationException(lastFormat.name() + "");
                     case PLAIN:
                     default:
                         input = IOUtils.toInputStream(data.getString("data"));
@@ -110,6 +110,13 @@ public class PrintDirect extends PrintRaw {
         streamEOL = true;
     }
 
+    /**
+     * This can optionally be called prior to parseData or print. Useful when stream params need to be saved, without calling print.
+     *
+     * @param output
+     * @param options
+     * @throws IOException
+     */
     public void init(PrintOutput output, PrintOptions options) throws IOException {
         this.output = output;
         this.options = options;

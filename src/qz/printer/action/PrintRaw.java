@@ -25,7 +25,6 @@ import qz.printer.LanguageType;
 import qz.printer.PrintOptions;
 import qz.printer.PrintOutput;
 import qz.utils.*;
-import sun.print.PageableDoc;
 
 import javax.imageio.ImageIO;
 import javax.print.*;
@@ -35,8 +34,6 @@ import javax.print.attribute.standard.JobName;
 import javax.print.event.PrintJobEvent;
 import javax.print.event.PrintJobListener;
 import java.awt.image.BufferedImage;
-import java.awt.print.Book;
-import java.awt.print.Pageable;
 import java.io.*;
 import java.net.Socket;
 import java.net.URL;
