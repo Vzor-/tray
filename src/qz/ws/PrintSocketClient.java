@@ -43,7 +43,7 @@ public class PrintSocketClient {
         PRINTERS_GET_DEFAULT("printers.getDefault", true, "access connected printers"),
         PRINTERS_FIND("printers.find", true, "access connected printers"),
         PRINT("print", true, "print to %s"),
-        PRINT_CONTINUATION("printContinuation", true, "continue printing to %s"),
+        PRINT_CHUNK("printChunk", true, "print data stream to %s"),
 
         SERIAL_FIND_PORTS("serial.findPorts", true, "access serial ports"),
         SERIAL_OPEN_PORT("serial.openPort", true, "open a serial port"),
@@ -247,7 +247,7 @@ public class PrintSocketClient {
         }
 
         String prompt = call.getDialogPrompt();
-        if (call == Method.PRINT) {
+        if (call == Method.PRINT || call == Method.PRINT_CHUNK) {
             //special formatting for print dialogs
             JSONObject pr = params.optJSONObject("printer");
             if (pr != null) {
@@ -258,8 +258,7 @@ public class PrintSocketClient {
             }
         }
 
-        if (call.isDialogShown()
-                && !allowedFromDialog(shownCertificate, prompt, findDialogPosition(session, json.optJSONObject("position")))) {
+        if (call.isDialogShown() && !allowedFromDialog(shownCertificate, prompt, findDialogPosition(session, json.optJSONObject("position")))) {
             sendError(session, UID, "Request blocked");
             return;
         }
@@ -287,14 +286,10 @@ public class PrintSocketClient {
                 break;
 
             case PRINT:
-                if (PrintingUtilities.isPrintStream(params)) {
-                    PrintingUtilities.initPrintStream(connection, shownCertificate, session, UID, params);
-                } else {
-                    PrintingUtilities.processPrintRequest(session, UID, params);
-                }
+                PrintingUtilities.processPrintRequest(session, UID, params);
                 break;
-            case PRINT_CONTINUATION:
-                PrintingUtilities.processPrintStream(connection, shownCertificate, session, UID, params);
+            case PRINT_CHUNK:
+                PrintingUtilities.processPrintStream(session, UID, connection, shownCertificate, params);
                 break;
 
             case SERIAL_FIND_PORTS:

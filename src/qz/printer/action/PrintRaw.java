@@ -24,7 +24,10 @@ import qz.printer.ImageWrapper;
 import qz.printer.LanguageType;
 import qz.printer.PrintOptions;
 import qz.printer.PrintOutput;
-import qz.utils.*;
+import qz.utils.ByteUtilities;
+import qz.utils.FileUtilities;
+import qz.utils.PrintingUtilities;
+import qz.utils.ShellUtilities;
 
 import javax.imageio.ImageIO;
 import javax.print.*;
@@ -55,8 +58,9 @@ public class PrintRaw implements PrintProcessor {
     private static final Logger log = LoggerFactory.getLogger(PrintRaw.class);
 
     private ByteArrayBuilder commands;
+    private InputStream fileStream;
 
-    String encoding = null;
+    private String encoding = null;
 
 
     public PrintRaw() {
@@ -95,6 +99,9 @@ public class PrintRaw implements PrintProcessor {
                         break;
                     case FILE:
                         commands.append(FileUtilities.readRawFile(cmd));
+                        break;
+                    case STREAM:
+                        fileStream = new FileInputStream(cmd);
                         break;
                     case IMAGE:
                         commands.append(getImageWrapper(cmd, opt).getImageCommand());
@@ -161,36 +168,40 @@ public class PrintRaw implements PrintProcessor {
     public void print(PrintOutput output, PrintOptions options) throws PrintException {
         PrintOptions.Raw rawOpts = options.getRawOptions();
 
-        List<ByteArrayBuilder> pages;
-        if (rawOpts.getPerSpool() > 0 && rawOpts.getEndOfDoc() != null && !rawOpts.getEndOfDoc().isEmpty()) {
-            try {
-                pages = ByteUtilities.splitByteArray(commands.getByteArray(), rawOpts.getEndOfDoc().getBytes(encoding), rawOpts.getPerSpool());
-            }
-            catch(UnsupportedEncodingException e) {
-                throw new PrintException(e);
-            }
+        if (fileStream != null) {
+            printToStream(output.getPrintService(), fileStream, rawOpts);
         } else {
-            pages = new ArrayList<>();
-            pages.add(commands);
-        }
-
-        for(int i = 0; i < rawOpts.getCopies(); i++) {
-            for(ByteArrayBuilder bab : pages) {
+            List<ByteArrayBuilder> pages;
+            if (rawOpts.getPerSpool() > 0 && rawOpts.getEndOfDoc() != null && !rawOpts.getEndOfDoc().isEmpty()) {
                 try {
-                    if (output.isSetHost()) {
-                        printToHost(output.getHost(), output.getPort(), bab.getByteArray());
-                    } else if (output.isSetFile()) {
-                        printToFile(output.getFile(), bab.getByteArray());
-                    } else {
-                        if (rawOpts.isAltPrinting()) {
-                            printToAlternate(output.getPrintService(), bab.getByteArray());
+                    pages = ByteUtilities.splitByteArray(commands.getByteArray(), rawOpts.getEndOfDoc().getBytes(encoding), rawOpts.getPerSpool());
+                }
+                catch(UnsupportedEncodingException e) {
+                    throw new PrintException(e);
+                }
+            } else {
+                pages = new ArrayList<>();
+                pages.add(commands);
+            }
+
+            for(int i = 0; i < rawOpts.getCopies(); i++) {
+                for(ByteArrayBuilder bab : pages) {
+                    try {
+                        if (output.isSetHost()) {
+                            printToHost(output.getHost(), output.getPort(), bab.getByteArray());
+                        } else if (output.isSetFile()) {
+                            printToFile(output.getFile(), bab.getByteArray());
                         } else {
-                            printToPrinter(output.getPrintService(), bab.getByteArray(), rawOpts);
+                            if (rawOpts.isAltPrinting()) {
+                                printToAlternate(output.getPrintService(), bab.getByteArray());
+                            } else {
+                                printToPrinter(output.getPrintService(), bab.getByteArray(), rawOpts);
+                            }
                         }
                     }
-                }
-                catch(IOException e) {
-                    throw new PrintException(e);
+                    catch(IOException e) {
+                        throw new PrintException(e);
+                    }
                 }
             }
         }
@@ -228,6 +239,16 @@ public class PrintRaw implements PrintProcessor {
     }
 
     /**
+     * Constructs a {@code SimpleDoc} with the {@code stream} InputStream.
+     */
+    private void printToStream(PrintService service, InputStream stream, PrintOptions.Raw rawOpts) throws PrintException {
+        if (stream == null) { throw new NullCommandException("No command stream found to send to the printer"); }
+
+        SimpleDoc doc = new SimpleDoc(stream, DocFlavor.INPUT_STREAM.AUTOSENSE, null);
+        printDoc(service, rawOpts, doc);
+    }
+
+    /**
      * Constructs a {@code SimpleDoc} with the {@code commands} byte array.
      */
     private void printToPrinter(PrintService service, byte[] cmds, PrintOptions.Raw rawOpts) throws PrintException {
@@ -235,7 +256,10 @@ public class PrintRaw implements PrintProcessor {
         if (cmds == null || cmds.length == 0) { throw new NullCommandException("No commands found to send to the printer"); }
 
         SimpleDoc doc = new SimpleDoc(cmds, DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
+        printDoc(service, rawOpts, doc);
+    }
 
+    private void printDoc(PrintService service, PrintOptions.Raw rawOpts, SimpleDoc doc) throws PrintException {
         PrintRequestAttributeSet attributes = new HashPrintRequestAttributeSet();
         attributes.add(new JobName(rawOpts.getJobName(Constants.RAW_PRINT), Locale.getDefault()));
 
@@ -244,7 +268,7 @@ public class PrintRaw implements PrintProcessor {
         waitForPrint(printJob, doc, attributes);
     }
 
-    protected void waitForPrint(DocPrintJob printJob, Doc doc, PrintRequestAttributeSet attributes) throws PrintException {
+    private void waitForPrint(DocPrintJob printJob, Doc doc, PrintRequestAttributeSet attributes) throws PrintException {
         final AtomicBoolean finished = new AtomicBoolean(false);
         printJob.addPrintJobListener(new PrintJobListener() {
             @Override
@@ -321,6 +345,12 @@ public class PrintRaw implements PrintProcessor {
     public void cleanup() {
         commands.clear();
         encoding = null;
+
+        if (fileStream != null) {
+            try { fileStream.close(); }
+            catch(IOException e) { log.error("Failed to close file stream", e); }
+            finally { fileStream = null; }
+        }
     }
 
 }

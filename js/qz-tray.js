@@ -369,74 +369,6 @@ var qz = (function() {
                 } else {
                     _qz.websocket.closedCallbacks(evt);
                 }
-            },
-
-            streamPrint: function(params, signature, signingTimestamp) {
-                var data = params.data;
-                var promiseChain = [];
-                var streamUID = _qz.websocket.setup.newUID();
-
-                var pendingData = [];
-                var pendingBytes = 0;
-                var callname = 'print';
-
-                //if data elements are small, combine multiple to fill a chunk.
-                for(var dataElementIndex = 0; dataElementIndex < data.length; dataElementIndex++) {
-                    var byteIndex = 0;
-                    //split remainers to chunk size, or split large objects into multiple chunks
-                    while (byteIndex < data[dataElementIndex].data.length) {
-                        //either allocate what we can fit in this chunk, or if it is small enough, allocate the entire thing and move on to next dataElement
-                        var deltaBytes = Math.min(data[0].chunkSize - pendingBytes, data[dataElementIndex].data.length - byteIndex);
-                        var pendingChunk = data[dataElementIndex].data.substring(byteIndex, byteIndex + deltaBytes);
-                        pendingBytes += deltaBytes;
-                        byteIndex += deltaBytes;
-
-                        var dataComplete = byteIndex == (data[dataElementIndex].data.length);
-                        var lastChunk =  dataElementIndex == (data.length - 1) && dataComplete;
-                        //if this is first chunk of this dataElement, include the params
-                        if (byteIndex - deltaBytes == 0) {
-                            pendingData.push({
-                                streamUID: streamUID,
-                                dataComplete: dataComplete,
-                                lastChunk: lastChunk,
-                                type: data[dataElementIndex].type,
-                                format: data[dataElementIndex].format,
-                                options: data[dataElementIndex].options,
-                                data: pendingChunk
-                            });
-                        } else {
-                            pendingData.push({
-                                streamUID: streamUID,
-                                dataComplete: dataComplete,
-                                lastChunk: lastChunk,
-                                data: pendingChunk
-                            });
-                        }
-                        //send or repeat, or if this is the last piece send it anyway
-                        if (pendingBytes >= data[0].chunkSize || lastChunk) {
-                            var _params = {
-                                printer: params.printer,
-                                options: params.options,
-                                data: pendingData
-                            }
-                            promiseChain.push(getLink(callname, _params, signature, signingTimestamp));
-                            callname = 'printContinuation';
-                            pendingData = [];
-                            pendingBytes = 0;
-                        }
-                    }
-                }
-
-                function getLink(callname, pendingData, signature, signingTimestamp) {
-                    return function() {
-                        return _qz.websocket.dataPromise(callname, pendingData, signature, signingTimestamp);
-                    }
-                }
-
-                var firstLink = _qz.tools.promise(function(r, e) {r();});
-                return promiseChain.reduce(function(sequence, link) {
-                    return sequence.then(link);
-                }, firstLink);
             }
         },
 
@@ -465,9 +397,82 @@ var qz = (function() {
                 units: 'in',
 
                 altPrinting: false,
+                chunkSize: false,
                 encoding: null,
                 endOfDoc: null,
                 perSpool: 1
+            },
+
+            streamPrint: function(params, signature, signingTimestamp) {
+                var data = params.data;
+                var streamUID = _qz.websocket.setup.newUID();
+                var promiseChain = [];
+
+                var pendingData = [];
+                var pendingBytes = 0;
+
+                var chunkSize = (40 * 1024); // 40kb
+                if (typeof +params.options.chunkSize === 'number') {
+                    chunkSize = Math.max(4, Math.round(params.options.chunkSize / 4) * 4);
+                }
+
+                //if data elements are small, combine multiple to fill a chunk.
+                for(var i = 0; i < data.length; i++) {
+                    var byteIndex = 0;
+
+                    //split remainders to chunk size or split large objects into multiple chunks
+                    while(byteIndex < data[i].data.length) {
+                        //either allocate what we can fit in this chunk or, if it is small enough, allocate the entire thing and move on to next dataElement
+                        var deltaBytes = Math.min(chunkSize - pendingBytes, data[i].data.length - byteIndex);
+                        var pendingChunk = data[i].data.substring(byteIndex, byteIndex + deltaBytes);
+                        pendingBytes += deltaBytes;
+                        byteIndex += deltaBytes;
+
+                        var dataComplete = (byteIndex == (data[i].data.length));
+                        var allDataComplete = (i == (data.length - 1) && dataComplete);
+
+                        var pData = {
+                            streamUID: streamUID,
+                            dataComplete: dataComplete,
+                            lastChunk: allDataComplete,
+                            data: pendingChunk
+                        };
+
+                        //if this is first chunk of this dataElement, include the params
+                        if (byteIndex - deltaBytes == 0) {
+                            _qz.tools.extend(pData, {
+                                type: data[i].type,
+                                format: data[i].format,
+                                options: data[i].options
+                            });
+                        }
+
+                        pendingData.push(pData);
+
+                        //send or repeat, or if this is the last piece send it anyway
+                        if (pendingBytes >= chunkSize || allDataComplete) {
+                            var _params = {
+                                printer: params.printer,
+                                options: params.options,
+                                data: pendingData
+                            };
+
+                            promiseChain.push(getLink('printChunk', _params, signature, signingTimestamp));
+                            pendingData = [];
+                            pendingBytes = 0;
+                        }
+                    }
+                }
+
+                function getLink(callname, pendingData, signature, signingTimestamp) {
+                    return function() {
+                        return _qz.websocket.dataPromise(callname, pendingData, signature, signingTimestamp);
+                    }
+                }
+
+                return promiseChain.reduce(function(sequence, link) {
+                    return sequence.then(link);
+                }, _qz.tools.promise(function(r) {r();}));
             }
         },
 
@@ -913,6 +918,7 @@ var qz = (function() {
              *  @param {string} [options.units='in'] Page units, applies to paper size, margins, and density. Valid value <code>[in | cm | mm]</code>
              *
              *  @param {boolean} [options.altPrinting=false] Print the specified file using CUPS command line arguments.  Has no effect on Windows.
+             *  @param {boolean|number} [options.chunkSize=false] If the print data should be split across multiple messages. If true, uses a size of 40kb.
              *  @param {string} [options.encoding=null] Character set
              *  @param {string} [options.endOfDoc=null]
              *  @param {number} [options.perSpool=1] Number of pages per spool.
@@ -963,7 +969,7 @@ var qz = (function() {
          *      For <code>[html]</code> types, valid formats include <code>[file(default) | plain]</code>.<p/>
          *      For <code>[image]</code> types, valid formats include <code>[base64 | file(default)]</code>.<p/>
          *      For <code>[pdf]</code> types, valid format include <code>[base64 | file(default)]</code>.<p/>
-         *      For <code>[raw]</code> types, valid formats include <code>[base64 | file | hex | plain(default) | image | xml]</code>.
+         *      For <code>[raw]</code> types, valid formats include <code>[base64 | file | hex | plain(default) | image | xml | stream]</code>.
          *  @param {Object} [data.options]
          *   @param {string} [data.options.language] Required with <code>[raw]</code> type <code>[image]</code> format. Printer language.
          *   @param {number} [data.options.x] Optional with <code>[raw]</code> type <code>[image]</code> format. The X position of the image.
@@ -985,10 +991,10 @@ var qz = (function() {
             //change relative links to absolute
             for(var i = 0; i < data.length; i++) {
                 if (data[i].constructor === Object) {
-                    if ((!data[i].format && data[i].type && (data[i].type.toUpperCase() !== 'RAW' && data[i].type.toUpperCase() !== 'DIRECT')) //unspecified format and not raw -> assume file
+                    if ((!data[i].format && data[i].type && (data[i].type.toUpperCase() !== 'RAW')) //unspecified format and not raw -> assume file
                         || (data[i].format && (data[i].format.toUpperCase() === 'FILE'
-                            || (data[i].format.toUpperCase() === 'IMAGE' && !(data[i].data.indexOf("data:image/") === 0 && data[i].data.indexOf(";base64,") !== 0))
-                            || data[i].format.toUpperCase() === 'XML'))) {
+                        || (data[i].format.toUpperCase() === 'IMAGE' && !(data[i].data.indexOf("data:image/") === 0 && data[i].data.indexOf(";base64,") !== 0))
+                        || data[i].format.toUpperCase() === 'XML'))) {
                         data[i].data = _qz.tools.absolute(data[i].data);
                     }
                 }
@@ -999,9 +1005,9 @@ var qz = (function() {
                 options: config.getOptions(),
                 data: data
             };
-            if (params.data && params.data[0].chunkSize) {
-                params.data[0].chunkSize = Math.max(4, Math.round(params.data[0].chunkSize / 4) * 4);
-                return _qz.websocket.streamPrint(params, signature, signingTimestamp);
+
+            if (params.options.chunkSize) {
+                return _qz.printing.streamPrint(params, signature, signingTimestamp);
             } else {
                 return _qz.websocket.dataPromise('print', params, signature, signingTimestamp);
             }

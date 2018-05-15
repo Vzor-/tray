@@ -11,7 +11,7 @@ import qz.auth.Certificate;
 import qz.common.Constants;
 import qz.printer.PrintOptions;
 import qz.printer.PrintOutput;
-import qz.printer.action.PrintDirect;
+import qz.printer.action.StreamModel;
 import qz.printer.action.PrintProcessor;
 import qz.printer.action.ProcessorFactory;
 import qz.ws.PrintSocketClient;
@@ -37,11 +37,11 @@ public class PrintingUtilities {
     private PrintingUtilities() {}
 
     public enum Type {
-        HTML, IMAGE, PDF, RAW, DIRECT
+        HTML, IMAGE, PDF, RAW
     }
 
     public enum Format {
-        BASE64, FILE, IMAGE, PLAIN, HEX, XML
+        BASE64, FILE, IMAGE, PLAIN, HEX, XML, STREAM
     }
 
 
@@ -149,7 +149,7 @@ public class PrintingUtilities {
      * @param params  Params of call from web API
      */
     public static void processPrintRequest(Session session, String UID, JSONObject params) throws JSONException {
-        PrintProcessor processor = PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
+        PrintProcessor processor = getPrintProcessor(params.getJSONArray("data"));
         log.debug("Using {} to print", processor.getClass().getName());
 
         try {
@@ -171,76 +171,64 @@ public class PrintingUtilities {
             PrintSocketClient.sendError(session, UID, e);
         }
         finally {
-            PrintingUtilities.releasePrintProcessor(processor);
+            releasePrintProcessor(processor);
         }
-    }
-
-    /**
-     * Initializes a stream that is keyed to the connection + cert Fingerprint + streamUID.
-     *
-     * @param connection SocketConnection that will store the stream reference
-     * @param cert       Certificate that followup chunks MUST be signed with
-     * @param session    WebSocket session
-     * @param UID        ID of call from web API
-     * @param params     Params of call from web API
-     */
-    public static void initPrintStream(SocketConnection connection, Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
-        String fingerprint = "!";
-        String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");
-        if (cert.isTrusted()) fingerprint = cert.getFingerprint();
-
-        PrintDirect printProcessor = (PrintDirect)PrintingUtilities.getPrintProcessor(params.getJSONArray("data"));
-        PrintOutput output = new PrintOutput(params.optJSONObject("printer"));
-        PrintOptions options = new PrintOptions(params.optJSONObject("options"), output);
-
-        try {
-            printProcessor.init(output, options);
-        }
-        catch(IOException e) {
-            PrintSocketClient.sendError(session, UID, e);
-            return;
-        }
-        connection.addStream(fingerprint + streamUID, printProcessor);
-        processPrintStream(connection, cert, session, UID, params);
     }
 
     /**
      * Continues a stream that is keyed to the connection + cert Fingerprint + streamUID.
      *
-     * @param connection SocketConnection that the stream reference is stored within
-     * @param cert       Certificate that was used to initialize the stream
      * @param session    WebSocket session
      * @param UID        ID of call from web API
+     * @param connection SocketConnection that the stream reference is stored within
+     * @param cert       Certificate that was used to initialize the stream
      * @param params     Params of call from web API
      */
-    public static void processPrintStream(SocketConnection connection, Certificate cert, Session session, String UID, JSONObject params) throws JSONException {
-        String fingerprint = "!";
+    public static void processPrintStream(Session session, String UID, SocketConnection connection, Certificate cert, JSONObject params) throws JSONException {
         String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");
-        if (cert.isTrusted()) fingerprint = cert.getFingerprint();
 
-        PrintDirect printProcessor = connection.getStream(fingerprint + streamUID);
+        String fingerprint = "!" + streamUID;
+        if (cert.isTrusted()) { fingerprint = cert.getFingerprint() + streamUID; }
+
+        StreamModel stream = connection.getStream(fingerprint);
+        if (stream == null) {
+            PrintOutput output = new PrintOutput(params.optJSONObject("printer"));
+            PrintOptions options = new PrintOptions(params.optJSONObject("options"), output);
+
+            try {
+                stream = new StreamModel(output, options);
+                connection.addStream(fingerprint, stream);
+            }
+            catch(IOException e) {
+                PrintSocketClient.sendError(session, UID, e);
+                return;
+            }
+        }
+
+        //grab a processor every time, even if we don't end up printing
+        PrintProcessor processor = getPrintProcessor(params.getJSONArray("data"));
+
         try {
-            printProcessor.parseData(params.getJSONArray("data"), null);
-            if (printProcessor.isReady()) printProcessor.print(null, null);
+            stream.parseData(params.getJSONArray("data"));
+            if (stream.isPrintReady()) {
+                stream.sendToPrint(processor);
+            }
 
             PrintSocketClient.sendResult(session, UID, null);
         }
         catch(Exception e) {
             log.error("Failed to print", e);
-            connection.removeStream(fingerprint + streamUID);
-            PrintingUtilities.releasePrintProcessor(printProcessor);
+            connection.removeStream(fingerprint);
             PrintSocketClient.sendError(session, UID, e);
         }
         finally {
-            if (printProcessor.isEOL()) {
-                connection.removeStream(fingerprint + streamUID);
-                PrintingUtilities.releasePrintProcessor(printProcessor);
+            releasePrintProcessor(processor);
+
+            if (stream.isPrintReady()) {
+                connection.removeStream(fingerprint);
                 log.info("Printing complete");
             }
         }
     }
 
-    public static boolean isPrintStream(JSONObject params) {
-        return params.optJSONArray("data").optJSONObject(0).has("streamUID");
-    }
 }

@@ -5,10 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qz.auth.Certificate;
 import qz.communication.*;
-import qz.printer.action.*;
+import qz.printer.action.StreamModel;
 
 import java.util.HashMap;
-import java.util.Hashtable;
 
 public class SocketConnection {
 
@@ -19,7 +18,8 @@ public class SocketConnection {
 
     private DeviceListener deviceListener;
 
-    private Hashtable<String,PrintDirect> printStreams;
+    // fingerprint -> pending PrintStream
+    private HashMap<String,StreamModel> printStreams = new HashMap<>();
 
     // serial port -> open SerialIO
     private final HashMap<String,SerialIO> openSerialPorts = new HashMap<>();
@@ -87,14 +87,15 @@ public class SocketConnection {
         addDevice(dOpts, device);
     }
 
-    public synchronized void addStream(String key, PrintDirect processor) {
-        if (printStreams == null) printStreams = new Hashtable<>();
+    public synchronized void addStream(String key, StreamModel processor) {
         printStreams.put(key, processor);
     }
-    public synchronized PrintDirect getStream(String key) {
+
+    public synchronized StreamModel getStream(String key) {
         return printStreams.get(key);
     }
-    public synchronized PrintDirect removeStream(String key) {
+
+    public synchronized StreamModel removeStream(String key) {
         return printStreams.remove(key);
     }
 
@@ -104,12 +105,12 @@ public class SocketConnection {
     public synchronized void disconnect() throws SerialPortException, DeviceException {
         log.info("Closing all communication channels for {}", certificate.getCommonName());
 
-        for(String p : openSerialPorts.keySet()) {
-            openSerialPorts.get(p).close();
+        for(StreamModel stream : printStreams.values()) {
+            stream.close();
         }
 
-        for(PrintDirect p : printStreams.values()) {
-            qz.utils.PrintingUtilities.releasePrintProcessor(p);
+        for(SerialIO sio : openSerialPorts.values()) {
+            sio.close();
         }
 
         for(DeviceIO dio : openDevices.values()) {

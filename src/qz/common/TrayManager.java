@@ -397,7 +397,7 @@ public class TrayManager {
                 SwingUtilities.invokeAndWait(new Runnable() {
                     @Override
                     public void run() {
-                        gatewayDialog.prompt("%s wants to " + prompt, cert, position);
+                        gatewayDialog.prompt("%s wants to " + prompt.replaceAll("%", "%%"), cert, position);
                     }
                 });
             }
