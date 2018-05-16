@@ -169,7 +169,7 @@ public class PrintRaw implements PrintProcessor {
         PrintOptions.Raw rawOpts = options.getRawOptions();
 
         if (fileStream != null) {
-            printToStream(output.getPrintService(), fileStream, rawOpts);
+            printStream(output.getPrintService(), fileStream, rawOpts);
         } else {
             List<ByteArrayBuilder> pages;
             if (rawOpts.getPerSpool() > 0 && rawOpts.getEndOfDoc() != null && !rawOpts.getEndOfDoc().isEmpty()) {
@@ -241,7 +241,7 @@ public class PrintRaw implements PrintProcessor {
     /**
      * Constructs a {@code SimpleDoc} with the {@code stream} InputStream.
      */
-    private void printToStream(PrintService service, InputStream stream, PrintOptions.Raw rawOpts) throws PrintException {
+    private void printStream(PrintService service, InputStream stream, PrintOptions.Raw rawOpts) throws PrintException {
         if (stream == null) { throw new NullCommandException("No command stream found to send to the printer"); }
 
         SimpleDoc doc = new SimpleDoc(stream, DocFlavor.INPUT_STREAM.AUTOSENSE, null);

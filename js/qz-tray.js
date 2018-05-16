@@ -411,8 +411,8 @@ var qz = (function() {
                 var pendingData = [];
                 var pendingBytes = 0;
 
-                var chunkSize = (40 * 1024); // 40kb
-                if (typeof +params.options.chunkSize === 'number') {
+                var chunkSize = (50 * 1024); // 50kb
+                if (typeof params.options.chunkSize === 'number') {
                     chunkSize = Math.max(4, Math.round(params.options.chunkSize / 4) * 4);
                 }
 

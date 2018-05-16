@@ -1935,7 +1935,7 @@
 
         cfg.reconfigure({
                             altPrinting: $("#rawAltPrinting").prop('checked'),
-                            chunkSize: $("#rawChunkSize").val(),
+                            chunkSize: +$("#rawChunkSize").val(),
                             encoding: $("#rawEncoding").val(),
                             endOfDoc: $("#rawEndOfDoc").val(),
                             perSpool: $("#rawPerSpool").val(),
