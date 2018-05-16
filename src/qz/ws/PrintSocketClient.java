@@ -289,7 +289,7 @@ public class PrintSocketClient {
                 PrintingUtilities.processPrintRequest(session, UID, params);
                 break;
             case PRINT_CHUNK:
-                PrintingUtilities.processPrintStream(session, UID, connection, shownCertificate, params);
+                PrintingUtilities.processPrintStream(session, UID, connection, params);
                 break;
 
             case SERIAL_FIND_PORTS:

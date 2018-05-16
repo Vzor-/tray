@@ -177,27 +177,22 @@ public class PrintingUtilities {
 
     /**
      * Continues a stream that is keyed to the connection + cert Fingerprint + streamUID.
-     *
-     * @param session    WebSocket session
+     *  @param session    WebSocket session
      * @param UID        ID of call from web API
      * @param connection SocketConnection that the stream reference is stored within
-     * @param cert       Certificate that was used to initialize the stream
      * @param params     Params of call from web API
      */
-    public static void processPrintStream(Session session, String UID, SocketConnection connection, Certificate cert, JSONObject params) throws JSONException {
+    public static void processPrintStream(Session session, String UID, SocketConnection connection, JSONObject params) throws JSONException {
         String streamUID = params.getJSONArray("data").getJSONObject(0).getString("streamUID");
 
-        String fingerprint = "!" + streamUID;
-        if (cert.isTrusted()) { fingerprint = cert.getFingerprint() + streamUID; }
-
-        StreamModel stream = connection.getStream(fingerprint);
+        StreamModel stream = connection.getStream(streamUID);
         if (stream == null) {
             PrintOutput output = new PrintOutput(params.optJSONObject("printer"));
             PrintOptions options = new PrintOptions(params.optJSONObject("options"), output);
 
             try {
                 stream = new StreamModel(output, options);
-                connection.addStream(fingerprint, stream);
+                connection.addStream(streamUID, stream);
             }
             catch(IOException e) {
                 PrintSocketClient.sendError(session, UID, e);
@@ -218,14 +213,14 @@ public class PrintingUtilities {
         }
         catch(Exception e) {
             log.error("Failed to print", e);
-            connection.removeStream(fingerprint);
+            connection.removeStream(streamUID);
             PrintSocketClient.sendError(session, UID, e);
         }
         finally {
             releasePrintProcessor(processor);
 
             if (stream.isPrintReady()) {
-                connection.removeStream(fingerprint);
+                connection.removeStream(streamUID);
                 log.info("Printing complete");
             }
         }
