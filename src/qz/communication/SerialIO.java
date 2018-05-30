@@ -78,7 +78,13 @@ public class SerialIO {
             if (event.isRXCHAR()) {
                 data.append(port.readBytes(event.getEventValue(), TIMEOUT));
 
-                if (width == null) {
+                if (dataBegin == null && dataEnd == null && width == null){
+                    byte[] output = new byte[data.getLength()];
+                    System.arraycopy(data.getByteArray(), 0, output, 0, data.getLength());
+                    data.clear();
+
+                    return StringUtils.newStringUtf8(output);
+                } else if (width == null) {
                     //delimited response
                     Integer[] beginPos = ByteUtilities.indicesOfMatches(data.getByteArray(), dataBegin);
                     Integer[] endPos = ByteUtilities.indicesOfMatches(data.getByteArray(), dataEnd);
@@ -121,12 +127,9 @@ public class SerialIO {
     private void setProperties(SerialProperties props) throws SerialPortException {
         if (props == null) { return; }
 
-        if (props.getBoundWidth() == null) {
-            dataBegin = SerialUtilities.characterBytes(props.getBoundBegin());
-            dataEnd = SerialUtilities.characterBytes(props.getBoundEnd());
-        } else {
-            width = props.getBoundWidth();
-        }
+        if (props.getBoundWidth() != null) width = props.getBoundWidth();
+        if (props.getBoundBegin() != null) dataBegin = SerialUtilities.characterBytes(props.getBoundBegin());
+        if (props.getBoundEnd() != null) dataEnd = SerialUtilities.characterBytes(props.getBoundEnd());
 
         boolean equals = this.props != null &&
                 this.props.getBaudRate() == props.getBaudRate() &&

@@ -18,8 +18,8 @@ public class SerialProperties {
     private int parity = SerialPort.PARITY_NONE;
     private int flowControl = SerialPort.FLOWCONTROL_NONE;
 
-    private String boundBegin = "0x0002";
-    private String boundEnd = "0x000D";
+    private String boundBegin = null;
+    private String boundEnd = null;
     private Integer boundWidth = null;
 
 

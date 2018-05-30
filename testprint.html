@@ -1,0 +1,73 @@
+<html>
+<head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+
+    <title>QZ Tray Sample Page</title>
+</head>
+
+<body onload="calibrate()">
+    Select file to print <input type="file" onchange="loadFile(this)">
+    <pre id="data"></pre>
+    <textarea id="dataArea" style="width:100%;height:90%">Connecting...</textarea>
+</body>
+
+<!-- Required scripts -->
+<script type="text/javascript" src="js/dependencies/rsvp-3.1.0.min.js"></script>
+<script type="text/javascript" src="js/dependencies/sha-256.min.js"></script>
+<script type="text/javascript" src="js/qz-tray.js"></script>
+	<script>
+    var filedata;
+	var data = "";
+      qz.serial.setSerialCallbacks(function(evt) {
+        if (evt.type !== 'ERROR') {           
+            data += evt.output;
+            displayData(evt.output);
+            if (data.endsWith("\nok\n")){
+                sendData();
+            }
+        } else console.error(evt.exception);
+      });
+	
+	function sendData() {
+        var dataToSend = "";
+        while (filedata.length && (!dataToSend || dataToSend.charAt(0)==';')){
+            dataToSend = filedata.shift();
+        }
+        displayData(dataToSend);
+        qz.serial.sendData("COM3", dataToSend).catch(function(e) { alert("OH GOD " + e); });
+	}
+	
+	function connect() {
+	 var bounds = {
+                baudRate: "115200",
+                dataBits: "8",
+                stopBits: "1",
+                parity: "NONE",
+                flowControl: "NONE"
+            };
+
+            qz.serial.openPort("COM3", bounds).then(function() {
+            }).catch(function() {alert("oh god #2 " + e)});
+	}
+
+    function displayData(item) {
+        document.getElementById("dataArea").innerHTML += item;
+        document.getElementById("dataArea").scrollTop = document.getElementById("dataArea").scrollHeight;
+    }
+
+    function loadFile(file) {
+        var reader = new FileReader();
+        reader.onload = function(progressEvent){
+            filedata = this.result.split('\n');
+            sendData();
+        };
+        reader.readAsText(file.files[0]);
+    }
+
+    function calibrate() {
+        qz.websocket.connect().then(function() {
+            setTimeout(connect, 2000);      
+        }).catch(function(err) { console.error(err); });       
+	}
+</script>
+</html>
