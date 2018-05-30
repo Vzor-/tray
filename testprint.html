@@ -18,6 +18,8 @@
 	<script>
     var filedata;
 	var data = "";
+    var port = "COM3";
+    var baud = "115200";
       qz.serial.setSerialCallbacks(function(evt) {
         if (evt.type !== 'ERROR') {           
             data += evt.output;
@@ -34,19 +36,19 @@
             dataToSend = filedata.shift();
         }
         displayData(dataToSend);
-        qz.serial.sendData("COM3", dataToSend).catch(function(e) { alert("OH GOD " + e); });
+        qz.serial.sendData(port, dataToSend).catch(function(e) { alert("OH GOD " + e); });
 	}
 	
 	function connect() {
 	 var bounds = {
-                baudRate: "115200",
+                baudRate: baud,
                 dataBits: "8",
                 stopBits: "1",
                 parity: "NONE",
                 flowControl: "NONE"
             };
 
-            qz.serial.openPort("COM3", bounds).then(function() {
+            qz.serial.openPort(port, bounds).then(function() {
             }).catch(function() {alert("oh god #2 " + e)});
 	}
 
