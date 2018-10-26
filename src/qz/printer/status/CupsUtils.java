@@ -1,12 +1,14 @@
 package qz.printer.status;
 
 import com.sun.jna.Pointer;
+import org.codehaus.jettison.json.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.net.util.URLUtil;
+import qz.utils.ShellUtilities;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  * Created by kyle on 5/17/17.
@@ -18,7 +20,6 @@ public class CupsUtils {
     private static Pointer http;
     private static int cupsPort;
     private static int subscriptionID = -1;
-
 
     synchronized static void initCupsStuff() {
         if (!httpInitialised) {
@@ -70,7 +71,7 @@ public class CupsUtils {
 
         Pointer response = Cups.INSTANCE.cupsDoRequest(http, request, "/");
         Pointer attr = Cups.INSTANCE.ippFindAttribute(response, "printer-state-reasons",
-                                                          Cups.INSTANCE.ippTagValue("keyword"));
+                                                      Cups.INSTANCE.ippTagValue("keyword"));
         ArrayList<PrinterStatus> statuses = new ArrayList<>();
 
         if (attr != Pointer.NULL) {
@@ -87,6 +88,21 @@ public class CupsUtils {
         Cups.INSTANCE.ippDelete(response);
 
         return statuses.toArray(new PrinterStatus[statuses.size()]);
+    }
+
+    public static void convertPrinterNames(JSONArray printerNames) {
+        HashMap<String, String> lookup = ShellUtilities.getCupsPrinters();
+        try {
+            for(int i = 0; i < printerNames.length(); i++) {
+                String oldPrinterName = printerNames.getString(i);
+                if (lookup.containsKey(oldPrinterName)) {
+                    printerNames.put(i, lookup.get(oldPrinterName));
+                }
+            }
+        }
+        catch(Exception e) {
+            log.warn("invalid JSON");
+        }
     }
 
     public static ArrayList<PrinterStatus> getAllStatuses() {
