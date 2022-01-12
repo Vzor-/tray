@@ -100,7 +100,12 @@ Section
     SetOutPath $INSTDIR
     !insertmacro QzInstaller "certgen" "" ""
 
+    ; Run scripts
+    SetOutPath "$PLUGINSDIR\payload"
+    !insertmacro QzInstaller "postinstall" "" ""
+
     ; Launch a non-elevated instance of ${project.name}
+    SetOutPath $INSTDIR
     ${StdUtils.ExecShellAsUser} $0 "$INSTDIR\${project.filename}.exe" "open" ""
 SectionEnd
 

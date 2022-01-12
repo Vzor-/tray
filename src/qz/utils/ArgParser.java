@@ -179,6 +179,9 @@ public class ArgParser {
                         // Failure in this step is extremely rare, but
                         return SUCCESS; // exception will set error
                     }
+                case POSTINSTALL:
+                    Installer.runAllScripts();
+                    return SUCCESS;
                 case UNINSTALL:
                     Installer.uninstall();
                     return SUCCESS;

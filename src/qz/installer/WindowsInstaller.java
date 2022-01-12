@@ -113,6 +113,15 @@ public class WindowsInstaller extends Installer {
         return this;
     }
 
+    public void runScript(Path script) {
+        try {
+            WindowsScriptExecutor.run(script);
+        }
+        catch(IOException | InterruptedException e) {
+            log.error("Script {} failed to run.", script.toString(), e);
+        }
+    }
+
     public Installer addSystemSettings() {
         /**
          * TODO: Upgrade JNA!

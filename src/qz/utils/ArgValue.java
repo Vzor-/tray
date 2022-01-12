@@ -43,6 +43,7 @@ public enum ArgValue {
             "install"),
     CERTGEN(INSTALLER, "Performs certificate generation and registration for proper HTTPS support.", "certgen [--key key.pem --cert cert.pem] [--pfx cert.pfx --pass 12345] [--host \"list;of;hosts\"]",
             "certgen"),
+    POSTINSTALL(INSTALLER, "Preform post-installation tasks", null, "postinstall"),
     UNINSTALL(INSTALLER, "Perform all uninstall tasks: Stop instances, delete files, unregister settings.", null,
               "uninstall"),
     SPAWN(INSTALLER, "Spawn an instance of the specified program as the logged-in user, avoiding starting as the root user if possible.", "spawn [program params ...]",

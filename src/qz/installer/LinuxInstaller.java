@@ -157,6 +157,11 @@ public class LinuxInstaller extends Installer {
         return this;
     }
 
+    @Override
+    public void runScript(Path script) {
+
+    }
+
     // Environmental variables for spawning a task using sudo. Order is important.
     static String[] SUDO_EXPORTS = {"USER", "HOME", "UPSTART_SESSION", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_CURRENT_DESKTOP", "GNOME_DESKTOP_SESSION_ID" };
 

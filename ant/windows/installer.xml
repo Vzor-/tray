@@ -4,10 +4,14 @@
     <property environment="env"/>
 
     <target name="build-exe" depends="get-version">
+        <copy todir="${dist.dir}/scripts" overwrite="true">
+            <fileset dir="ant/windows/scripts" includes="**"/>
+        </copy>
         <!-- Sign Libs and Runtime -->
         <fileset dir="${dist.dir}/" id="win.sign.found">
             <include name="**/*.dll"/>
             <include name="**/*.exe"/>
+            <include name="**/*.ps1"/>
         </fileset>
         <pathconvert pathsep=" " property="win.sign.separated" refid="win.sign.found"/>
         <antcall target="sign-win">

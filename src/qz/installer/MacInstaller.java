@@ -80,6 +80,11 @@ public class MacInstaller extends Installer {
         return this;
     }
 
+    @Override
+    public void runScript(Path script) {
+
+    }
+
     /**
      * Removes legacy (<= 2.0) startup entries
      */

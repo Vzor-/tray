@@ -23,6 +23,7 @@ import java.io.*;
 import java.nio.file.*;
 import java.security.cert.X509Certificate;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static qz.common.Constants.*;
 import static qz.installer.certificate.KeyPairWrapper.Type.CA;
@@ -50,6 +51,7 @@ public abstract class Installer {
     public abstract Installer addStartupEntry();
     public abstract Installer addSystemSettings();
     public abstract Installer removeSystemSettings();
+    public abstract void runScript(Path script);
     public abstract void spawn(List<String> args) throws Exception;
 
     public abstract void setDestination(String destination);
@@ -120,6 +122,10 @@ public abstract class Installer {
         if(!Files.exists(dest)) {
             Files.createDirectories(dest);
         }
+
+        // Todo: move this, also be mindful that scripts will not exist if it was empty at build
+        // Move scrips to prevent them from being copied to destination
+        FileUtils.moveDirectory(src.resolve("scripts").toFile(), src.getParent().resolve("scripts").toFile());
 
         // Delete the JDK blindly
         FileUtils.deleteDirectory(dest.resolve(JRE_LOCATION).toFile());
@@ -234,6 +240,18 @@ public abstract class Installer {
             log.warn("Could not delete shared directory: {}", SHARED_DIR);
         }
         return this;
+    }
+
+    public static void runAllScripts() {
+        getInstance();
+        try {
+            Path scriptsDir = SystemUtilities.getAppPath().getParent().resolve("scripts");
+            Stream<Path> scripts = Files.list(scriptsDir);
+            scripts.forEachOrdered(script -> instance.runScript(script));
+        }
+        catch(IOException e) {
+            log.error("An error occurred while executing post-install scrips", e);
+        }
     }
 
     /**
