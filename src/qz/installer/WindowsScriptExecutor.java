@@ -73,6 +73,16 @@ public class WindowsScriptExecutor {
         }
     }
 
+    public static void runBat(Path script) throws IOException, InterruptedException {
+        Path cmd = Paths.get(System.getenv("WINDIR"), "system32", "cmd.exe");
+        if (!Files.exists(cmd, new LinkOption[0])) {
+            throw new FileNotFoundException(cmd.toString());
+        } else {
+            ProcessBuilder pb = new ProcessBuilder(new String[]{cmd.toString(), "/c", script.toString()});
+            runAndOutput(pb);
+        }
+    }
+
     public static void runAndOutput(ProcessBuilder pb) throws IOException, InterruptedException {
         System.out.println(pb.command());
 
@@ -109,6 +119,9 @@ public class WindowsScriptExecutor {
                 break;
             case "js":
                 runJs(script);
+                break;
+            case "bat":
+                runBat(script);
                 break;
             default:
                 log.error("The script file extension \"{}\" is unsupported for this operating system", type);
