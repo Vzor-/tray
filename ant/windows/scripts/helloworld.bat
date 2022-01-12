@@ -1,2 +1,2 @@
 @ECHO OFF
-ECHO Hello World! This is Batch Script
+ECHO Hello %TITLE%! This is Batch Script

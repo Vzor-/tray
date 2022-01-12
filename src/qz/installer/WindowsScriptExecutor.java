@@ -5,6 +5,7 @@ import com.sun.jna.platform.win32.WinReg;
 import org.apache.commons.io.FilenameUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import qz.common.Constants;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -84,7 +85,7 @@ public class WindowsScriptExecutor {
     }
 
     public static void runAndOutput(ProcessBuilder pb) throws IOException, InterruptedException {
-        System.out.println(pb.command());
+        pb.environment().put("TITLE", Constants.ABOUT_TITLE);
 
         final Process p = pb.start();
         p.waitFor();
