@@ -1,1 +1,1 @@
-WScript.Echo(" Hello World! This is Javascript.");
+WScript.Echo("Hello World! This is Javascript.");

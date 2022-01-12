@@ -21,7 +21,7 @@ public class WindowsScriptExecutor {
         // PowerShell is not version 1.0 but the folder name was never changed *shrug*
         Path powershell = Paths.get(System.getenv("WINDIR"), "system32", "WindowsPowerShell", "v1.0" , "powershell.exe");
         if (!Files.exists(powershell)) throw new FileNotFoundException(powershell.toString());
-        // Should use prop "AllSigned" instead of ByPass
+        // todo Should use prop "AllSigned" instead of ByPass
         ProcessBuilder pb = new ProcessBuilder(powershell.toString(), "-ExecutionPolicy",  "ByPass", "-File", script.toString(), "-Force");
 
         runAndOutput(pb);
@@ -58,7 +58,7 @@ public class WindowsScriptExecutor {
         if (!Files.exists(cscript, new LinkOption[0])) {
             throw new FileNotFoundException(cscript.toString());
         } else {
-            ProcessBuilder pb = new ProcessBuilder(new String[]{cscript.toString(), script.toString()});
+            ProcessBuilder pb = new ProcessBuilder(new String[]{cscript.toString(), "/nologo", script.toString()});
             runAndOutput(pb);
         }
     }
@@ -68,7 +68,7 @@ public class WindowsScriptExecutor {
         if (!Files.exists(cscript, new LinkOption[0])) {
             throw new FileNotFoundException(cscript.toString());
         } else {
-            ProcessBuilder pb = new ProcessBuilder(new String[]{cscript.toString(), "//E:jscript", script.toString()});
+            ProcessBuilder pb = new ProcessBuilder(new String[]{cscript.toString(), "/nologo", "//E:jscript", script.toString()});
             runAndOutput(pb);
         }
     }

@@ -1,1 +1,1 @@
-Write-Host ' Hello World! This is Powershell Script'
+Write-Host 'Hello World! This is Powershell Script'
