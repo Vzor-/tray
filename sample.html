@@ -2718,6 +2718,11 @@
         addPrintersLog(streamEvent);
     });
 
+    qz.printers.setJobDataCallbacks(function(streamEvent) {
+        //todo
+        console.log(streamEvent);
+    });
+
     qz.file.setFileCallbacks(function(streamEvent) {
         if (streamEvent.type !== 'ERROR') {
             var text = "<h5>File IO Event</h5>" +
